@@ -87,31 +87,7 @@
             font-size: 0.9em;
         }
 
-        .user-info {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255,255,255,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
 
-        .reset-btn {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 8px;
-            font-size: 0.8em;
-            cursor: pointer;
-            pointer-events: all;
-            transition: background 0.3s;
-            margin-left: 8px;
-        }
-
-        .reset-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
 
         /* 모바일 최적화 */
         @media (max-width: 768px) {
@@ -489,18 +465,15 @@
 
     <div class="ui-overlay">
         <div class="header">
-            <h1>🗿 행운 돌탑 🗿</h1>
-            <div class="height-display">내 돌탑: <span id="towerHeight">0</span>개</div>
+            <h1>🗿 공동 행운 돌탑 🗿</h1>
+            <div class="height-display">함께 쌓은 돌: <span id="towerHeight">0</span>개</div>
         </div>
     </div>
 
     <div class="stats-display">
-        <div>전체 돌탑: <span id="totalStones">-</span>개</div>
-        <div>오늘 쌓인 돌: <span id="todayStones">-</span>개</div>
-        <div class="user-info">
-            <small>내 ID: <span id="userIdDisplay">-</span></small>
-            <button id="resetUserBtn" class="reset-btn">🔄</button>
-        </div>
+        <div>🌍 공동 돌탑: <span id="totalStones">-</span>개</div>
+        <div>📅 오늘 쌓인 돌: <span id="todayStones">-</span>개</div>
+        <div>� 모든 사람이 함께 쌓는 돌탑</div>
     </div>
 
     <button class="add-stone-btn" id="addStoneBtn">+</button>
@@ -562,89 +535,20 @@
             try {
                 supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 
-                // 사용자 ID 생성 (브라우저 지문 기반으로 일관성 보장)
-                let storedUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+                // 모든 사용자가 함께 하나의 돌탑을 쌓도록 공통 ID 사용
+                userId = 'shared_tower'; // 모든 사용자가 같은 돌탑을 공유
                 
-                if (!storedUserId) {
-                    storedUserId = generateUserId();
-                    localStorage.setItem('userId', storedUserId);
-                    sessionStorage.setItem('userId', storedUserId);
-                    console.log('새 사용자 ID 생성:', storedUserId);
-                } else {
-                    console.log('기존 사용자 ID 사용:', storedUserId);
-                }
-                
-                userId = storedUserId;
-                
-                // 양쪽 저장소에 모두 저장 (PC/모바일 동기화)
-                localStorage.setItem('userId', userId);
-                sessionStorage.setItem('userId', userId);
-                
-                console.log('Supabase 초기화 완료, 사용자 ID:', userId);
+                console.log('Supabase 초기화 완료 - 공동 돌탑 모드');
                 console.log('Supabase URL:', SUPABASE_URL);
-                
-                // UI에 사용자 ID 표시
-                updateUserIdDisplay();
             } catch (error) {
                 console.error('Supabase 초기화 실패:', error);
                 showError('데이터베이스 연결에 실패했습니다.');
             }
         }
 
-        // 사용자 ID 표시 업데이트
-        function updateUserIdDisplay() {
-            const userIdElement = document.getElementById('userIdDisplay');
-            if (userIdElement && userId) {
-                userIdElement.textContent = userId.substring(0, 8) + '...';
-                userIdElement.title = userId; // 전체 ID는 툴팁으로
-            }
-        }
 
-        // 사용자 ID 초기화
-        function resetUserId() {
-            if (confirm('새로운 사용자로 시작하시겠습니까?\n(기존 돌탑은 보이지 않게 됩니다)')) {
-                localStorage.removeItem('userId');
-                sessionStorage.removeItem('userId');
-                userId = generateUserId();
-                localStorage.setItem('userId', userId);
-                sessionStorage.setItem('userId', userId);
-                
-                updateUserIdDisplay();
-                loadUserStones(); // 새 사용자의 돌탑 로드
-                
-                if (navigator.vibrate) {
-                    navigator.vibrate([100]);
-                }
-            }
-        }
 
-        // 사용자 ID 생성 (브라우저 지문 기반)
-        function generateUserId() {
-            // 브라우저 지문을 만들어 일관된 ID 생성
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            ctx.textBaseline = 'top';
-            ctx.font = '14px Arial';
-            ctx.fillText('Browser fingerprint', 2, 2);
-            
-            const fingerprint = [
-                navigator.userAgent,
-                navigator.language,
-                screen.width + 'x' + screen.height,
-                new Date().getTimezoneOffset(),
-                canvas.toDataURL()
-            ].join('|');
-            
-            // 지문을 해시로 변환하여 일관된 ID 생성
-            let hash = 0;
-            for (let i = 0; i < fingerprint.length; i++) {
-                const char = fingerprint.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // 32비트 정수로 변환
-            }
-            
-            return 'user_' + Math.abs(hash).toString(36);
-        }
+
 
         // 에러 메시지 표시
         function showError(message) {
@@ -1002,7 +906,7 @@
                     .from('stones')
                     .insert([
                         {
-                            user_id: userId,
+                            user_id: userId, // 공통 ID 사용
                             text: text,
                             shape: shape,
                             size: size,
@@ -1020,8 +924,8 @@
             }
         }
 
-        // 사용자의 돌들을 불러오기
-        async function loadUserStones() {
+        // 모든 사용자의 돌들을 불러오기 (공동 돌탑)
+        async function loadAllStones() {
             if (!supabase) return;
             
             setLoading(true);
@@ -1030,7 +934,6 @@
                 const { data, error } = await supabase
                     .from('stones')
                     .select('*')
-                    .eq('user_id', userId)
                     .order('created_at', { ascending: true });
 
                 if (error) throw error;
@@ -1326,9 +1229,7 @@
             }
         });
 
-        // 사용자 ID 리셋 버튼 이벤트
-        const resetUserBtn = document.getElementById('resetUserBtn');
-        resetUserBtn.addEventListener('click', resetUserId);
+
 
         // 모바일 감지 함수
         function isMobile() {
@@ -1344,11 +1245,14 @@
             updateBackground();
             
             if (supabase) {
-                await loadUserStones();
+                await loadAllStones();
                 await loadStats();
                 
-                // 주기적으로 통계 업데이트 (30초마다)
-                setInterval(loadStats, 30000);
+                // 주기적으로 돌탑과 통계 업데이트 (10초마다)
+                setInterval(() => {
+                    loadAllStones();
+                    loadStats();
+                }, 10000);
             }
         }
 
