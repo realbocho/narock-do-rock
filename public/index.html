@@ -379,81 +379,81 @@
             }
         }
 
-        /* 말풍선 스타일 */
-        .speech-bubble {
+        /* 돌 라벨 스타일 (항상 표시) */
+        .stone-label {
             position: fixed;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             color: #333;
-            padding: 15px 20px;
-            border-radius: 20px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            padding: 8px 12px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 2500;
-            max-width: 300px;
-            min-width: 150px;
-            font-size: 1em;
-            line-height: 1.4;
-            opacity: 0;
-            transform: scale(0.8);
-            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            max-width: 200px;
+            min-width: 80px;
+            font-size: 0.85em;
+            line-height: 1.3;
             pointer-events: none;
             word-wrap: break-word;
             text-align: center;
-            border: 2px solid #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            font-weight: 500;
         }
 
-        .speech-bubble::before {
+        .stone-label::before {
             content: '';
             position: absolute;
-            bottom: -10px;
+            bottom: -6px;
             left: 50%;
             transform: translateX(-50%);
             width: 0;
             height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-top: 10px solid white;
-            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.1));
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid rgba(255, 255, 255, 0.95);
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
         }
 
-        .speech-bubble::after {
-            content: '';
-            position: absolute;
-            bottom: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 12px solid transparent;
-            border-right: 12px solid transparent;
-            border-top: 12px solid #667eea;
-        }
-
-        .speech-bubble.show {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        .speech-bubble.empty {
-            background: #f8f9fa;
+        .stone-label.empty {
+            background: rgba(248, 249, 250, 0.9);
             color: #6c757d;
             font-style: italic;
-            border-color: #dee2e6;
+            border-color: rgba(222, 226, 230, 0.5);
         }
 
-        /* 모바일 말풍선 최적화 */
+        .stone-label.empty::before {
+            border-top-color: rgba(248, 249, 250, 0.9);
+        }
+
+        /* 모바일 라벨 최적화 */
         @media (max-width: 768px) {
-            .speech-bubble {
-                max-width: 250px;
-                padding: 12px 16px;
-                font-size: 0.9em;
+            .stone-label {
+                max-width: 150px;
+                padding: 6px 10px;
+                font-size: 0.75em;
+            }
+
+            .stone-label::before {
+                bottom: -5px;
+                border-left-width: 5px;
+                border-right-width: 5px;
+                border-top-width: 5px;
             }
         }
 
         @media (max-width: 480px) {
-            .speech-bubble {
-                max-width: 200px;
-                padding: 10px 14px;
-                font-size: 0.8em;
+            .stone-label {
+                max-width: 120px;
+                padding: 5px 8px;
+                font-size: 0.7em;
+            }
+
+            .stone-label::before {
+                bottom: -4px;
+                border-left-width: 4px;
+                border-right-width: 4px;
+                border-top-width: 4px;
             }
         }
     </style>
@@ -525,8 +525,7 @@
         let currentHeight = 0;
         let isLoading = false;
         let raycaster, mouse;
-        let speechBubble = null;
-        let speechBubbleTimeout = null;
+        let stoneLabels = [];
 
         // Supabase 초기화
         function initSupabase() {
@@ -681,6 +680,9 @@
                 }
             });
 
+            // 돌 라벨 위치 업데이트
+            updateStoneLabels();
+
             renderer.render(scene, camera);
         }
 
@@ -833,6 +835,11 @@
             // 다음 돌을 위한 높이 업데이트
             currentHeight += stoneHeight;
             
+            // 돌 라벨 생성 (소원이 있을 때만)
+            if (text && text.trim()) {
+                createStoneLabel(stone, text);
+            }
+            
             return stone;
         }
 
@@ -884,6 +891,9 @@
                 });
                 stones = [];
                 currentHeight = 0;
+
+                // 기존 라벨들도 제거
+                clearAllLabels();
 
                 // 저장된 돌들 복원
                 if (data && Array.isArray(data) && data.length > 0) {
@@ -964,7 +974,85 @@
             }
         }
 
-        // 돌 클릭 이벤트 처리
+        // 돌 라벨 생성
+        function createStoneLabel(stone, text) {
+            const label = document.createElement('div');
+            label.className = 'stone-label';
+            
+            if (text && text.trim()) {
+                label.textContent = text;
+            } else {
+                label.textContent = '🗿';
+                label.classList.add('empty');
+            }
+            
+            document.body.appendChild(label);
+            
+            // 라벨과 돌 연결
+            stoneLabels.push({
+                stone: stone,
+                label: label
+            });
+        }
+
+        // 돌 라벨 위치 업데이트
+        function updateStoneLabels() {
+            stoneLabels.forEach(labelData => {
+                const { stone, label } = labelData;
+                
+                // 3D 좌표를 2D 화면 좌표로 변환
+                const vector = new THREE.Vector3();
+                stone.getWorldPosition(vector);
+                
+                // 돌 위쪽에 라벨 위치 설정
+                vector.y += 1.2;
+                
+                vector.project(camera);
+                
+                // 정규화된 좌표를 화면 좌표로 변환
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+                
+                // 카메라 뒤쪽에 있는 돌은 숨기기
+                if (vector.z > 1) {
+                    label.style.display = 'none';
+                } else {
+                    label.style.display = 'block';
+                    
+                    // 라벨 위치 설정
+                    const labelRect = label.getBoundingClientRect();
+                    let labelX = x - labelRect.width / 2;
+                    let labelY = y - labelRect.height - 10;
+                    
+                    // 화면 경계 체크
+                    if (labelX < 5) labelX = 5;
+                    if (labelX + labelRect.width > window.innerWidth - 5) {
+                        labelX = window.innerWidth - labelRect.width - 5;
+                    }
+                    if (labelY < 5) labelY = y + 20;
+                    
+                    label.style.left = labelX + 'px';
+                    label.style.top = labelY + 'px';
+                    
+                    // 거리에 따른 투명도 조절 (멀수록 투명하게)
+                    const distance = camera.position.distanceTo(stone.position);
+                    const opacity = Math.max(0.3, Math.min(1, (30 - distance) / 20));
+                    label.style.opacity = opacity;
+                }
+            });
+        }
+
+        // 모든 라벨 제거
+        function clearAllLabels() {
+            stoneLabels.forEach(labelData => {
+                if (labelData.label && labelData.label.parentNode) {
+                    labelData.label.parentNode.removeChild(labelData.label);
+                }
+            });
+            stoneLabels = [];
+        }
+
+        // 돌 클릭 이벤트 처리 (햅틱 피드백만)
         function onStoneClick(event) {
             event.preventDefault();
             
@@ -985,86 +1073,10 @@
             const intersects = raycaster.intersectObjects(stones);
 
             if (intersects.length > 0) {
-                const clickedStone = intersects[0].object;
-                const stoneText = clickedStone.userData.text;
-                
                 // 햅틱 피드백
                 if (navigator.vibrate) {
                     navigator.vibrate([25]);
                 }
-                
-                // 말풍선 표시
-                showSpeechBubble(stoneText, clientX, clientY);
-            } else {
-                // 빈 공간 클릭 시 말풍선 숨기기
-                hideSpeechBubble();
-            }
-        }
-
-        // 말풍선 표시
-        function showSpeechBubble(text, x, y) {
-            // 기존 말풍선 제거
-            hideSpeechBubble();
-
-            // 새 말풍선 생성
-            speechBubble = document.createElement('div');
-            speechBubble.className = 'speech-bubble';
-            
-            if (text && text.trim()) {
-                speechBubble.textContent = text;
-            } else {
-                speechBubble.textContent = '소원을 적지 않은 돌이에요 🗿';
-                speechBubble.classList.add('empty');
-            }
-
-            // 위치 계산 (말풍선이 화면을 벗어나지 않도록)
-            document.body.appendChild(speechBubble);
-            
-            const bubbleRect = speechBubble.getBoundingClientRect();
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            
-            let bubbleX = x - bubbleRect.width / 2;
-            let bubbleY = y - bubbleRect.height - 20; // 클릭 지점 위에 표시
-            
-            // 화면 경계 체크
-            if (bubbleX < 10) bubbleX = 10;
-            if (bubbleX + bubbleRect.width > windowWidth - 10) {
-                bubbleX = windowWidth - bubbleRect.width - 10;
-            }
-            if (bubbleY < 10) {
-                bubbleY = y + 20; // 클릭 지점 아래에 표시
-            }
-            
-            speechBubble.style.left = bubbleX + 'px';
-            speechBubble.style.top = bubbleY + 'px';
-            
-            // 애니메이션 표시
-            setTimeout(() => {
-                speechBubble.classList.add('show');
-            }, 10);
-
-            // 3초 후 자동 숨기기
-            speechBubbleTimeout = setTimeout(() => {
-                hideSpeechBubble();
-            }, 3000);
-        }
-
-        // 말풍선 숨기기
-        function hideSpeechBubble() {
-            if (speechBubbleTimeout) {
-                clearTimeout(speechBubbleTimeout);
-                speechBubbleTimeout = null;
-            }
-            
-            if (speechBubble) {
-                speechBubble.classList.remove('show');
-                setTimeout(() => {
-                    if (speechBubble && speechBubble.parentNode) {
-                        speechBubble.parentNode.removeChild(speechBubble);
-                    }
-                    speechBubble = null;
-                }, 300);
             }
         }
 
