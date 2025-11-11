@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 행운 돌탑</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            transition: background 1s ease;
+        }
+
+        .bg-low {
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+        }
+
+        .bg-medium {
+            background: linear-gradient(to bottom, #FF6B6B 0%, #FFE66D 100%);
+        }
+
+        .bg-high {
+            background: linear-gradient(to bottom, #4A00E0 0%, #8E2DE2 100%);
+        }
+
+        .bg-extreme {
+            background: linear-gradient(to bottom, #000000 0%, #434343 100%);
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            pointer-events: none;
+        }
+
+        .header {
+            text-align: center;
+            margin: 20px 0;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .height-display {
+            font-size: 1.5em;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 30px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            display: inline-block;
+        }
+
+        .stats-display {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            pointer-events: none;
+            font-size: 0.9em;
+        }
+
+        .add-stone-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 2em;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+            z-index: 1000;
+            pointer-events: all;
+        }
+
+        .add-stone-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+        }
+
+        .add-stone-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+            pointer-events: all;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.4s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .shape-selector, .size-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .shape-option, .size-option {
+            flex: 1;
+            min-width: 80px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .shape-option:hover, .size-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .shape-option.selected, .size-option.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .confirm-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .cancel-btn {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .modal-buttons button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .modal-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .error-message {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            z-index: 3000;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body class="bg-low">
+    <div id="canvas-container"></div>
+
+    <div class="ui-overlay">
+        <div class="header">
+            <h1>🗿 행운 돌탑 🗿</h1>
+            <div class="height-display">내 돌탑: <span id="towerHeight">0</span>개</div>
+        </div>
+    </div>
+
+    <div class="stats-display">
+        <div>전체 돌탑: <span id="totalStones">-</span>개</div>
+        <div>오늘 쌓인 돌: <span id="todayStones">-</span>개</div>
+    </div>
+
+    <button class="add-stone-btn" id="addStoneBtn">+</button>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2>돌 쌓기</h2>
+            
+            <div class="input-group">
+                <label>소원을 적어주세요</label>
+                <input type="text" id="stoneText" placeholder="행운이 가득하기를..." maxlength="20">
+            </div>
+
+            <div class="input-group">
+                <label>돌 모양</label>
+                <div class="shape-selector">
+                    <div class="shape-option selected" data-shape="sphere">둥근돌</div>
+                    <div class="shape-option" data-shape="ellipsoid">타원돌</div>
+                    <div class="shape-option" data-shape="box">네모돌</div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>돌 크기</label>
+                <div class="size-selector">
+                    <div class="size-option" data-size="small">작게</div>
+                    <div class="size-option selected" data-size="medium">보통</div>
+                    <div class="size-option" data-size="large">크게</div>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancelBtn">취소</button>
+                <button class="confirm-btn" id="confirmBtn">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading" id="loading" style="display: none;">돌탑 불러오는 중...</div>
+
+    <script>
+        // Supabase 설정 (환경변수 사용)
+        const SUPABASE_URL = 'https://pckgfjonniicxqfrisqm.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBja2dmam9ubmlpY3hxZnJpc3FtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NDk4NzksImV4cCI6MjA3ODQyNTg3OX0.QjGd9N7bLS2VJaIityKoelK49qGAN2tGV0i3T11EPMg';
+        
+        let supabase;
+        let userId;
+        let scene, camera, renderer;
+        let stones = [];
+        let selectedShape = 'sphere';
+        let selectedSize = 'medium';
+        let currentHeight = 0;
+        let isLoading = false;
+
+        // Supabase 초기화
+        function initSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                // 사용자 ID 생성 (브라우저 세션 기반)
+                userId = localStorage.getItem('userId') || generateUserId();
+                localStorage.setItem('userId', userId);
+                console.log('Supabase 초기화 완료');
+            } catch (error) {
+                console.error('Supabase 초기화 실패:', error);
+                showError('데이터베이스 연결에 실패했습니다.');
+            }
+        }
+
+        // 사용자 ID 생성
+        function generateUserId() {
+            return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+
+        // 에러 메시지 표시
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            document.body.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 5000);
+        }
+
+        // 로딩 표시/숨김
+        function setLoading(loading) {
+            isLoading = loading;
+            document.getElementById('loading').style.display = loading ? 'block' : 'none';
+            document.getElementById('addStoneBtn').disabled = loading;
+            document.getElementById('confirmBtn').disabled = loading;
+        }
+
+        // Three.js 초기화
+        function initThree() {
+            scene = new THREE.Scene();
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 15);
+            camera.lookAt(0, 3, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 조명
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // 땅 판
+            const groundGeometry = new THREE.CylinderGeometry(4, 4, 0.5, 32);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B7355,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.position.y = 0;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 윈도우 리사이즈
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            animate();
+        }
+
+        // 애니메이션 루프
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 돌들 업데이트
+            stones.forEach(stone => {
+                if (stone.userData.falling) {
+                    stone.userData.velocity += stone.userData.gravity;
+                    stone.position.y += stone.userData.velocity;
+                    
+                    // 회전 효과
+                    stone.rotation.x += stone.userData.rotationSpeed.x;
+                    stone.rotation.z += stone.userData.rotationSpeed.z;
+
+                    // 착지 체크
+                    if (stone.position.y <= stone.userData.targetY) {
+                        stone.position.y = stone.userData.targetY;
+                        stone.userData.falling = false;
+                        stone.userData.bouncing = true;
+                        stone.userData.bounceVelocity = 0.08;
+                        stone.userData.bounceCount = 0;
+                        
+                        // 회전 멈춤
+                        stone.rotation.x = 0;
+                        stone.rotation.z = 0;
+                        
+                        // 착지 햅틱 피드백
+                        if (navigator.vibrate) {
+                            navigator.vibrate([100]);
+                        }
+                    }
+                }
+                
+                // 바운스 효과
+                if (stone.userData.bouncing) {
+                    stone.userData.bounceVelocity -= 0.01;
+                    stone.position.y += stone.userData.bounceVelocity;
+                    
+                    if (stone.position.y <= stone.userData.targetY) {
+                        stone.position.y = stone.userData.targetY;
+                        stone.userData.bounceCount++;
+                        
+                        // 바운스마다 약한 햅틱
+                        if (navigator.vibrate && stone.userData.bounceCount <= 2) {
+                            navigator.vibrate([30]);
+                        }
+                        
+                        if (stone.userData.bounceCount < 3) {
+                            stone.userData.bounceVelocity = 0.04 / stone.userData.bounceCount;
+                        } else {
+                            stone.userData.bouncing = false;
+                        }
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // 텍스트 텍스처 생성
+        function createTextTexture(text, size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // 배경 (약간 투명)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // 텍스트
+            const fontSize = size === 'large' ? 60 : size === 'medium' ? 50 : 40;
+            ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            
+            // 여러 줄로 나누기
+            const maxWidth = 450;
+            const words = text.split('');
+            let lines = [];
+            let currentLine = '';
+            
+            for (let i = 0; i < words.length; i++) {
+                const testLine = currentLine + words[i];
+                const metrics = ctx.measureText(testLine);
+                
+                if (metrics.width > maxWidth && currentLine !== '') {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            lines.push(currentLine);
+            
+            // 텍스트 그리기
+            const lineHeight = fontSize * 1.2;
+            const startY = 256 - (lines.length - 1) * lineHeight / 2;
+            
+            lines.forEach((line, i) => {
+                ctx.fillText(line, 256, startY + i * lineHeight);
+            });
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        // 돌 생성
+        function createStone(text, shape, size, savedStone = null) {
+            const sizes = {
+                small: 0.6,
+                medium: 0.8,
+                large: 1.0
+            };
+            
+            const scale = sizes[size];
+            let geometry;
+            let stoneHeight;
+            
+            if (shape === 'sphere') {
+                geometry = new THREE.SphereGeometry(0.5 * scale, 32, 32);
+                stoneHeight = 1.0 * scale;
+            } else if (shape === 'ellipsoid') {
+                geometry = new THREE.SphereGeometry(0.5 * scale, 32, 32);
+                geometry.scale(1.3, 0.7, 1.1);
+                stoneHeight = 0.7 * scale;
+            } else {
+                // 네모돌을 더 돌처럼 보이게
+                geometry = new THREE.BoxGeometry(
+                    0.9 * scale, 
+                    0.7 * scale, 
+                    0.8 * scale
+                );
+                stoneHeight = 0.7 * scale;
+            }
+
+            const colors = [0x8B7355, 0xA0826D, 0x9C8274, 0xB8A99A];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            const material = new THREE.MeshStandardMaterial({ 
+                color: randomColor,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            
+            // 텍스트가 있으면 텍스처 추가
+            if (text) {
+                const textTexture = createTextTexture(text, size);
+                material.map = textTexture;
+            }
+            
+            const stone = new THREE.Mesh(geometry, material);
+            stone.castShadow = true;
+            stone.receiveShadow = true;
+            
+            // 돌의 높이 계산 - 직전 돌 바로 위에 쌓기
+            const targetY = 0.25 + currentHeight + stoneHeight / 2;
+            
+            // 기존 돌을 불러올 때는 애니메이션 없이 바로 위치
+            if (savedStone) {
+                stone.position.set(0, targetY, 0);
+                stone.userData = {
+                    text: text,
+                    falling: false,
+                    bouncing: false,
+                    velocity: 0,
+                    gravity: -0.01,
+                    targetY: targetY,
+                    bounceVelocity: 0,
+                    bounceCount: 0,
+                    rotationSpeed: { x: 0, z: 0 },
+                    stoneHeight: stoneHeight,
+                    id: savedStone.id
+                };
+            } else {
+                // 새로운 돌일 때는 애니메이션 효과
+                stone.position.set(
+                    (Math.random() - 0.5) * 0.2,
+                    targetY + 8,
+                    (Math.random() - 0.5) * 0.2
+                );
+                
+                stone.userData = {
+                    text: text,
+                    falling: true,
+                    bouncing: false,
+                    velocity: 0,
+                    gravity: -0.01,
+                    targetY: targetY,
+                    bounceVelocity: 0,
+                    bounceCount: 0,
+                    rotationSpeed: {
+                        x: (Math.random() - 0.5) * 0.1,
+                        z: (Math.random() - 0.5) * 0.1
+                    },
+                    stoneHeight: stoneHeight
+                };
+            }
+            
+            // 다음 돌을 위한 높이 업데이트
+            currentHeight += stoneHeight;
+            
+            return stone;
+        }
+
+        // 돌을 Supabase에 저장
+        async function saveStone(text, shape, size) {
+            if (!supabase) return null;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('stones')
+                    .insert([
+                        {
+                            user_id: userId,
+                            text: text,
+                            shape: shape,
+                            size: size,
+                            created_at: new Date().toISOString()
+                        }
+                    ])
+                    .select();
+
+                if (error) throw error;
+                return data[0];
+            } catch (error) {
+                console.error('돌 저장 실패:', error);
+                showError('돌 저장에 실패했습니다.');
+                return null;
+            }
+        }
+
+        // 사용자의 돌들을 불러오기
+        async function loadUserStones() {
+            if (!supabase) return;
+            
+            setLoading(true);
+            
+            try {
+                const { data, error } = await supabase
+                    .from('stones')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                // 기존 돌들 제거
+                stones.forEach(stone => {
+                    scene.remove(stone);
+                });
+                stones = [];
+                currentHeight = 0;
+
+                // 저장된 돌들 복원
+                if (data) {
+                    data.forEach(stoneData => {
+                        const stone = createStone(stoneData.text, stoneData.shape, stoneData.size, stoneData);
+                        scene.add(stone);
+                        stones.push(stone);
+                    });
+                }
+
+                document.getElementById('towerHeight').textContent = stones.length;
+                updateBackground();
+                updateCamera();
+
+            } catch (error) {
+                console.error('돌 불러오기 실패:', error);
+                showError('돌탑 불러오기에 실패했습니다.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // 전체 통계 불러오기
+        async function loadStats() {
+            if (!supabase) return;
+            
+            try {
+                // 전체 돌 개수
+                const { count: totalCount } = await supabase
+                    .from('stones')
+                    .select('*', { count: 'exact', head: true });
+
+                // 오늘 생성된 돌 개수
+                const today = new Date().toISOString().split('T')[0];
+                const { count: todayCount } = await supabase
+                    .from('stones')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('created_at', today + 'T00:00:00')
+                    .lt('created_at', today + 'T23:59:59');
+
+                document.getElementById('totalStones').textContent = totalCount || 0;
+                document.getElementById('todayStones').textContent = todayCount || 0;
+
+            } catch (error) {
+                console.error('통계 불러오기 실패:', error);
+                document.getElementById('totalStones').textContent = '-';
+                document.getElementById('todayStones').textContent = '-';
+            }
+        }
+
+        // 배경 업데이트
+        function updateBackground() {
+            const count = stones.length;
+            const body = document.body;
+            body.className = '';
+            
+            if (count < 5) {
+                body.classList.add('bg-low');
+            } else if (count < 10) {
+                body.classList.add('bg-medium');
+            } else if (count < 20) {
+                body.classList.add('bg-high');
+            } else {
+                body.classList.add('bg-extreme');
+            }
+        }
+
+        // 카메라 위치 업데이트
+        function updateCamera() {
+            if (stones.length > 3) {
+                camera.position.y = 5 + stones.length * 0.3;
+                camera.lookAt(0, currentHeight / 2, 0);
+            }
+        }
+
+        // UI 이벤트
+        const modal = document.getElementById('modal');
+        const addStoneBtn = document.getElementById('addStoneBtn');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const towerHeight = document.getElementById('towerHeight');
+        const stoneText = document.getElementById('stoneText');
+
+        addStoneBtn.addEventListener('click', () => {
+            if (isLoading) return;
+            
+            modal.classList.add('show');
+            stoneText.value = '';
+            stoneText.focus();
+            
+            // 버튼 클릭 햅틱
+            if (navigator.vibrate) {
+                navigator.vibrate([20]);
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+
+        document.querySelectorAll('.shape-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.shape-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedShape = option.dataset.shape;
+                
+                // 선택 햅틱
+                if (navigator.vibrate) {
+                    navigator.vibrate([15]);
+                }
+            });
+        });
+
+        document.querySelectorAll('.size-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.size-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedSize = option.dataset.size;
+                
+                // 선택 햅틱
+                if (navigator.vibrate) {
+                    navigator.vibrate([15]);
+                }
+            });
+        });
+
+        confirmBtn.addEventListener('click', async () => {
+            if (isLoading) return;
+            
+            const text = stoneText.value.trim();
+            
+            // 확인 버튼 햅틱 (강하게)
+            if (navigator.vibrate) {
+                navigator.vibrate([50]);
+            }
+            
+            setLoading(true);
+            
+            // Supabase에 저장
+            const savedStone = await saveStone(text, selectedShape, selectedSize);
+            
+            if (savedStone) {
+                const stone = createStone(text, selectedShape, selectedSize);
+                stone.userData.id = savedStone.id;
+                scene.add(stone);
+                stones.push(stone);
+                
+                towerHeight.textContent = stones.length;
+                updateBackground();
+                updateCamera();
+                
+                // 통계 업데이트
+                await loadStats();
+            }
+            
+            setLoading(false);
+            modal.classList.remove('show');
+        });
+
+        stoneText.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !isLoading) {
+                confirmBtn.click();
+            }
+        });
+
+        // 초기화
+        async function init() {
+            initSupabase();
+            initThree();
+            updateBackground();
+            
+            if (supabase) {
+                await loadUserStones();
+                await loadStats();
+                
+                // 주기적으로 통계 업데이트 (30초마다)
+                setInterval(loadStats, 30000);
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        init();
+    </script>
+</body>
+</html>

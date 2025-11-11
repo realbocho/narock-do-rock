@@ -1,0 +1,20 @@
+{
+  "name": "3d-lucky-stone-tower",
+  "version": "1.0.0",
+  "description": "3D 행운 돌탑 웹사이트 - Vercel & Supabase",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server public -p 3000",
+    "build": "echo 'Static site, no build required'",
+    "start": "npx http-server public -p 3000"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.4"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "keywords": ["3d", "tower", "stones", "vercel", "supabase"],
+  "author": "",
+  "license": "MIT"
+}
