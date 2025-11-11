@@ -581,25 +581,49 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            // 모바일 호환성을 위한 WebGL 설정
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: !isMobile(), // 모바일에서는 안티앨리어싱 비활성화
+                alpha: true,
+                powerPreference: "high-performance",
+                stencil: false,
+                depth: true,
+                precision: "mediump" // 모바일 성능 최적화
+            });
+            
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 픽셀 비율 제한
+            renderer.shadowMap.enabled = !isMobile(); // 모바일에서는 그림자 비활성화
+            if (!isMobile()) {
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            }
+            
+            // 캔버스 스타일 설정
+            renderer.domElement.style.display = 'block';
+            renderer.domElement.style.width = '100%';
+            renderer.domElement.style.height = '100%';
+            
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // 조명
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            // 조명 (모바일 최적화)
+            const ambientLight = new THREE.AmbientLight(0xffffff, isMobile() ? 0.8 : 0.6);
             scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, isMobile() ? 0.6 : 0.8);
             directionalLight.position.set(5, 10, 5);
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
+            
+            if (!isMobile()) {
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 1024;
+                directionalLight.shadow.mapSize.height = 1024;
+            }
             scene.add(directionalLight);
 
             // 땅 판
-            const groundGeometry = new THREE.CylinderGeometry(4, 4, 0.5, 32);
+            const groundGeometry = new THREE.CylinderGeometry(4, 4, 0.5, isMobile() ? 16 : 32);
             const groundMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0x8B7355,
                 roughness: 0.8,
@@ -607,7 +631,9 @@
             });
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.position.y = 0;
-            ground.receiveShadow = true;
+            if (!isMobile()) {
+                ground.receiveShadow = true;
+            }
             scene.add(ground);
 
             // 윈도우 리사이즈
@@ -621,12 +647,35 @@
             renderer.domElement.addEventListener('click', onStoneClick);
             renderer.domElement.addEventListener('touchend', onStoneClick);
 
+            // WebGL 컨텍스트 손실 처리
+            renderer.domElement.addEventListener('webglcontextlost', function(event) {
+                event.preventDefault();
+                console.error('WebGL 컨텍스트 손실');
+            });
+
+            renderer.domElement.addEventListener('webglcontextrestored', function() {
+                console.log('WebGL 컨텍스트 복원');
+                initThree();
+            });
+
+            // 디버깅용 - 캔버스 상태 확인
+            console.log('캔버스 크기:', renderer.domElement.width, 'x', renderer.domElement.height);
+            console.log('화면 크기:', window.innerWidth, 'x', window.innerHeight);
+            console.log('WebGL 지원:', !!renderer.getContext());
+
             animate();
         }
 
         // 애니메이션 루프
+        let frameCount = 0;
         function animate() {
             requestAnimationFrame(animate);
+            
+            // 첫 몇 프레임에서 디버깅 정보 출력 (모바일에서만)
+            if (isMobile() && frameCount < 3) {
+                console.log('애니메이션 프레임', frameCount, '렌더링 중, 돌 개수:', stones.length);
+                frameCount++;
+            }
             
             // 돌들 업데이트
             stones.forEach(stone => {
@@ -785,8 +834,10 @@
             }
             
             const stone = new THREE.Mesh(geometry, material);
-            stone.castShadow = true;
-            stone.receiveShadow = true;
+            if (!isMobile()) {
+                stone.castShadow = true;
+                stone.receiveShadow = true;
+            }
             
             // 돌의 높이 계산 - 직전 돌 바로 위에 쌓기
             const targetY = 0.25 + currentHeight + stoneHeight / 2;
@@ -1176,8 +1227,15 @@
             }
         });
 
+        // 모바일 감지 함수
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768;
+        }
+
         // 초기화
         async function init() {
+            console.log('초기화 시작, 모바일:', isMobile());
             initSupabase();
             initThree();
             updateBackground();
