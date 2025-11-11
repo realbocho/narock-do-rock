@@ -378,6 +378,84 @@
                 opacity: 1;
             }
         }
+
+        /* 말풍선 스타일 */
+        .speech-bubble {
+            position: fixed;
+            background: white;
+            color: #333;
+            padding: 15px 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            z-index: 2500;
+            max-width: 300px;
+            min-width: 150px;
+            font-size: 1em;
+            line-height: 1.4;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            pointer-events: none;
+            word-wrap: break-word;
+            text-align: center;
+            border: 2px solid #667eea;
+        }
+
+        .speech-bubble::before {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid white;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.1));
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 12px solid #667eea;
+        }
+
+        .speech-bubble.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .speech-bubble.empty {
+            background: #f8f9fa;
+            color: #6c757d;
+            font-style: italic;
+            border-color: #dee2e6;
+        }
+
+        /* 모바일 말풍선 최적화 */
+        @media (max-width: 768px) {
+            .speech-bubble {
+                max-width: 250px;
+                padding: 12px 16px;
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .speech-bubble {
+                max-width: 200px;
+                padding: 10px 14px;
+                font-size: 0.8em;
+            }
+        }
     </style>
 </head>
 <body class="bg-low">
@@ -446,6 +524,9 @@
         let selectedSize = 'medium';
         let currentHeight = 0;
         let isLoading = false;
+        let raycaster, mouse;
+        let speechBubble = null;
+        let speechBubbleTimeout = null;
 
         // Supabase 초기화
         function initSupabase() {
@@ -497,6 +578,10 @@
             camera.position.set(0, 5, 15);
             camera.lookAt(0, 3, 0);
 
+            // 레이캐스터와 마우스 벡터 초기화
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
@@ -532,6 +617,10 @@
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
+
+            // 마우스 클릭 이벤트 (돌 클릭 감지)
+            renderer.domElement.addEventListener('click', onStoneClick);
+            renderer.domElement.addEventListener('touchend', onStoneClick);
 
             animate();
         }
@@ -872,6 +961,110 @@
             if (stones.length > 3) {
                 camera.position.y = 5 + stones.length * 0.3;
                 camera.lookAt(0, currentHeight / 2, 0);
+            }
+        }
+
+        // 돌 클릭 이벤트 처리
+        function onStoneClick(event) {
+            event.preventDefault();
+            
+            // 터치 이벤트와 마우스 이벤트 모두 처리
+            const clientX = event.clientX || (event.changedTouches && event.changedTouches[0].clientX);
+            const clientY = event.clientY || (event.changedTouches && event.changedTouches[0].clientY);
+            
+            if (!clientX || !clientY) return;
+
+            // 마우스 좌표를 정규화된 디바이스 좌표로 변환
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+            // 레이캐스터 업데이트
+            raycaster.setFromCamera(mouse, camera);
+
+            // 돌들과의 교차점 찾기
+            const intersects = raycaster.intersectObjects(stones);
+
+            if (intersects.length > 0) {
+                const clickedStone = intersects[0].object;
+                const stoneText = clickedStone.userData.text;
+                
+                // 햅틱 피드백
+                if (navigator.vibrate) {
+                    navigator.vibrate([25]);
+                }
+                
+                // 말풍선 표시
+                showSpeechBubble(stoneText, clientX, clientY);
+            } else {
+                // 빈 공간 클릭 시 말풍선 숨기기
+                hideSpeechBubble();
+            }
+        }
+
+        // 말풍선 표시
+        function showSpeechBubble(text, x, y) {
+            // 기존 말풍선 제거
+            hideSpeechBubble();
+
+            // 새 말풍선 생성
+            speechBubble = document.createElement('div');
+            speechBubble.className = 'speech-bubble';
+            
+            if (text && text.trim()) {
+                speechBubble.textContent = text;
+            } else {
+                speechBubble.textContent = '소원을 적지 않은 돌이에요 🗿';
+                speechBubble.classList.add('empty');
+            }
+
+            // 위치 계산 (말풍선이 화면을 벗어나지 않도록)
+            document.body.appendChild(speechBubble);
+            
+            const bubbleRect = speechBubble.getBoundingClientRect();
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            let bubbleX = x - bubbleRect.width / 2;
+            let bubbleY = y - bubbleRect.height - 20; // 클릭 지점 위에 표시
+            
+            // 화면 경계 체크
+            if (bubbleX < 10) bubbleX = 10;
+            if (bubbleX + bubbleRect.width > windowWidth - 10) {
+                bubbleX = windowWidth - bubbleRect.width - 10;
+            }
+            if (bubbleY < 10) {
+                bubbleY = y + 20; // 클릭 지점 아래에 표시
+            }
+            
+            speechBubble.style.left = bubbleX + 'px';
+            speechBubble.style.top = bubbleY + 'px';
+            
+            // 애니메이션 표시
+            setTimeout(() => {
+                speechBubble.classList.add('show');
+            }, 10);
+
+            // 3초 후 자동 숨기기
+            speechBubbleTimeout = setTimeout(() => {
+                hideSpeechBubble();
+            }, 3000);
+        }
+
+        // 말풍선 숨기기
+        function hideSpeechBubble() {
+            if (speechBubbleTimeout) {
+                clearTimeout(speechBubbleTimeout);
+                speechBubbleTimeout = null;
+            }
+            
+            if (speechBubble) {
+                speechBubble.classList.remove('show');
+                setTimeout(() => {
+                    if (speechBubble && speechBubble.parentNode) {
+                        speechBubble.parentNode.removeChild(speechBubble);
+                    }
+                    speechBubble = null;
+                }, 300);
             }
         }
 
